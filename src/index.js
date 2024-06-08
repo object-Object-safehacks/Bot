@@ -124,7 +124,6 @@ const context = new Collection();
 
 client.on(Events.MessageCreate, async (message) => {
     if (message.author.id == client.user.id) return; // dont reply to yourself
-    // if (message.guild.ownerId == message.author.id) return; // dont reply to guild owner
 
     // check if there is context for the channel    
     if (!context.has(message.channel.id)) {
