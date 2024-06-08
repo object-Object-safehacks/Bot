@@ -22,6 +22,27 @@ const IMAGES_ENDPOINT = process.env.IMAGES_ENDPOINT;
 
 // === BASE FUNCTIONS ===
 
+async function report(message, reason) {
+    const res = await fetch(REPORT_ENDPOINT, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            user: message.author.id,
+            guild: message.guild.id,
+            channel: message.channel.id,
+            message: message.id,
+            content: message.content,
+            reason: reason,
+        }),
+    });
+
+    const data = await res.json();
+
+    console.log(data);
+}
+
 async function validateMessage(contextObj, messageObj) {
     const contextStr = contextObj.map((c) => `${c.user}: ${c.content}`).join("\n");
     const message = messageObj.user + ": " + messageObj.content;
@@ -142,6 +163,8 @@ client.on(Events.MessageCreate, async (message) => {
         for (const response of responses) {
             if (response) {
                 message.reply('nsfw or something');
+
+                report(message, 'Images');
                 return;
             }
         }
@@ -154,8 +177,10 @@ client.on(Events.MessageCreate, async (message) => {
     });
 
     if (flagged.value) {
-        console.log(`Message from ${message.author.tag} was flagged as scam`);
+        console.log(`Message from ${message.author.tag} was flagged`);
         message.reply(flagged.reason);
+
+        report(message, flagged.reason);
         return;
     }
 
