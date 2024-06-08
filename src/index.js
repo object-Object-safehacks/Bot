@@ -37,10 +37,12 @@ async function report(message, reason) {
             reason: reason,
         }),
     });
-
-    const data = await res.json();
-
-    console.log(data);
+    
+    if (res.ok) { 
+        console.log(`Reported message from ${message.author.tag} in guild ${message.guild.name}`);
+    } else {
+        console.error(`Failed to report message from ${message.author.tag} in guild ${message.guild.name}`);
+    }
 }
 
 async function validateMessage(contextObj, messageObj) {
