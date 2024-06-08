@@ -209,6 +209,116 @@ apiRouter.post("/user", async (req, res) => {
     return res.json({ hasPermission: true });
 });
 
+const actionsRouter = express.Router();
+
+actionsRouter.post("/delete", async (req, res) => {
+    const { message, guild } = req.body;
+
+    console.log(`Deleting message ${message} in guild ${guild}`);
+
+    if (!message || !guild) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // get the guild
+    let guildObj;
+    try {
+        guildObj = await client.guilds.fetch(guild);
+    } catch {
+        return res.status(404).json({ error: "Guild not found" });
+    }
+
+    // get the message
+    let messageObj;
+    try {
+        messageObj = await (await guildObj.channels.fetch(message)).messages.fetch(message);
+    } catch {
+        return res.status(404).json({ error: "Message not found" });
+    }
+
+    // delete the message
+    try {
+        await messageObj.delete();
+    } catch {
+        return res.status(500).json({ error: "Failed to delete message" });
+    }
+
+    return res.json({ success: true });
+})
+
+actionsRouter.post("/timeout", async (req, res) => {
+    const { user, guild, time } = req.body;
+
+    console.log(`Timing out user ${user} in guild ${guild} for ${time} milliseconds`);
+
+    if (!user || !guild) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // get the guild
+    let guildObj;
+    try {
+        guildObj = await client.guilds.fetch(guild);
+    } catch {
+        return res.status(404).json({ error: "Guild not found" });
+    }
+
+    // get the user
+    let member;
+    try {
+        member = await guildObj.members.fetch(user);
+    } catch {
+        return res.status(404).json({ error: "User not found" });
+    }
+
+    // timeout the user
+    try {
+        await member.timeout(time || (1000 * 60 * 60), "API TIMEOUT REQUEST");
+    } catch {
+        return res.status(500).json({ error: "Failed to timeout user" });
+    }
+
+    return res.json({ success: true });
+})
+
+actionsRouter.post("/ban", async (req, res) => {
+    const { user, guild } = req.body;
+
+    console.log(`Banning user ${user} in guild ${guild}`);
+
+    if (!user || !guild) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // get the guild
+    let guildObj;
+    try {
+        guildObj = await client.guilds.fetch(guild);
+    } catch {
+        return res.status(404).json({ error: "Guild not found" });
+    }
+
+    // get the user
+    let member;
+    try {
+        member = await guildObj.members.fetch(user);
+    } catch {
+        return res.status(404).json({ error: "User not found" });
+    }
+
+    // ban the user
+    try {
+        await member.ban({
+            reason: "API BAN REQUEST"
+        });
+    } catch {
+        return res.status(500).json({ error: "Failed to ban user" });
+    }
+
+    return res.json({ success: true });
+})
+
+apiRouter.use("/actions", actionsRouter);
 app.use("/api", apiRouter);
 
 app.listen(PORT, () => {
