@@ -66,11 +66,11 @@ async function validateMessage(contextObj, messageObj) {
             messages: [
                 {
                     role: "system",
-                    content: "You are an AI tasked to detect scam, self promotion or nsfw messages on Discord, " + 
-                    "an online chatting application. You will be provided context to a message, and a message to " + 
-                    "check. If this message potentially falls under one of those categories, reply with \"TRUE\" " + 
-                    "with a reason. otherwise, reply with \"FALSE\". Don't assume anything. If the message " + 
-                    "doesn't explicitly mention something, don't assume it. For example, " + 
+                    content: "You are an AI tasked to detect scam, self promotion, harassment or nsfw messages on " + 
+                    "Discord, an online chatting application. You will be provided context to a message, and a message " + 
+                    "to check. If this message potentially falls under one of those categories, reply with \"TRUE\" " + 
+                    "with a short reason. otherwise, reply with \"FALSE\", no reason needed. Don't assume " + 
+                    "anything. If the message doesn't explicitly mention something, don't assume it. For example, " + 
                     "internet slang like 'ur', asking for usernames, and pinging users are not scams. More " + 
                     "importantly, if the context violates any of these, but not the message, don't flag it. " +
                     "Otherwise you will flag an innocent user. If you are unsure, reply with \"FALSE\". "
@@ -133,16 +133,12 @@ async function validateImages(urls) {
         }),
     });
 
-    const data = await res.json();
+    if (res.ok) {
+        return await res.json();
+    } 
 
-    const results = [];
-
-    for (const result in data.results) {
-        results.push(result);
-    }
-
-    console.log(results);
-    return results;
+    console.error("Image Validation Service returned non-ok status code.\nContent:\n\n" + await res.text());
+    return { results: [] };
 }
 
 // === BOT CODE ===
@@ -174,14 +170,18 @@ client.on(Events.MessageCreate, async (message) => {
         // validate the image
         const responses = await validateImages(attachmentURLs);
 
-        for (const response of responses) {
+        for (const response of responses.results) {
             if (response) {
-                message.reply('Bad image detected. Please do not send inappropriate images.');
+                const baseDomain = new URL(IMAGES_ENDPOINT).hostname;
+                message.reply('Bad image detected. Please do not send inappropriate images.\n' +
+                    "https://" + baseDomain + responses.urls[responses.results.indexOf(response)]);
 
                 report(message, 'Images');
                 return;
             }
         }
+
+        if (message.content.length < 1) return; // no need to validate the message if there is no content
     }
 
     // validate the message
