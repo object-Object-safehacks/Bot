@@ -176,7 +176,7 @@ client.on(Events.MessageCreate, async (message) => {
 
         for (const response of responses) {
             if (response) {
-                message.reply('nsfw or something');
+                message.reply('Bad image detected. Please do not send inappropriate images.');
 
                 report(message, 'Images');
                 return;
