@@ -7,7 +7,7 @@ console.log = function () {
 };
 
 import fs from "fs";
-import { Client, Collection, Events, GatewayIntentBits, Partials, PermissionsBitField } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, Collection, Events, GatewayIntentBits, Partials, PermissionsBitField } from "discord.js";
 import fetch from "node-fetch";
 import express from "express";
 import path from "path";
@@ -27,24 +27,7 @@ const IMAGES_ENDPOINT = process.env.IMAGES_ENDPOINT;
 // === BASE FUNCTIONS ===
 
 async function report(message, attachments, reason) {
-    console.log(JSON.stringify({
-        user: {
-            id: message.author.id,
-            name: message.author.tag
-        },
-        guild: message.guild.id,
-        channel: {
-            id: message.channel.id,
-            name: message.channel.name
-        },
-        message: {
-            id: message.id,
-            content: message.content,
-            attachments: attachments
-        },
-        reason: reason,
-        time: new Date().toISOString()
-    }))
+    console.log(`Reporting message from ${message.author.tag} in guild ${message.guild.name}`);
 
     const res = await fetch(REPORT_ENDPOINT, {
         method: "POST",
@@ -74,7 +57,38 @@ async function report(message, attachments, reason) {
     if (res.ok) { 
         console.log(`Reported message from ${message.author.tag} in guild ${message.guild.name}`);
 
-        return await res.text();
+        const value = await res.json();
+
+        const linkButton = new ButtonBuilder()
+            .setLabel("Solve CAPTCHA")
+            .setURL(value.url)
+            .setStyle(ButtonStyle.Link)
+
+        const row = new ActionRowBuilder()
+            .addComponents(linkButton);
+
+        const watchMsg = await message.reply({
+            content: 
+                `# MESSAGE FLAGGED\n` +
+                `Your message has been flagged for the following reason: ${reason}\n` +
+                `Please solve the CAPTCHA to continue chatting.\n` +
+                `An elevated punishment will be issued <t:${Math.floor(Date.now() / 1000) + 60}:R>.`,
+            components: [row]
+        });
+
+        setTimeout(async () => {
+            try {
+                await watchMsg.delete();
+            } catch {
+                console.error(`Failed to delete watch message..?`);
+            }
+
+            try {
+                await message.delete();
+            } catch {
+                console.error(`Failed to delete message from ${message.author.tag} in guild ${message.guild.name}`);
+            }
+        })
     } else {
         console.error(`Failed to report message from ${message.author.tag} in guild ${message.guild.name}`);
     }
@@ -227,9 +241,6 @@ client.on(Events.MessageCreate, async (message) => {
         for (const response of responses.results) {
             if (response != null) {
                 if (response) {
-                    message.reply('Bad image detected. Please do not send inappropriate images.\n' +
-                        responses.urls[responses.results.indexOf(response)]);
-    
                     report(message, attachmentURLs, 'Images');
                     return;
                 }
@@ -243,9 +254,6 @@ client.on(Events.MessageCreate, async (message) => {
 
             for (const response of urlResponses) {
                 if (response) {
-                    message.reply('Bad URL detected.\n' +
-                        urlsToScan[urlResponses.indexOf(response)]);
-        
                     report(message, attachmentURLs, 'URLs');
                     return;
                 }
@@ -262,9 +270,6 @@ client.on(Events.MessageCreate, async (message) => {
     });
 
     if (flagged.value) {
-        console.log(`Message from ${message.author.tag} was flagged`);
-        message.reply(flagged.reason);
-
         report(message, attachmentURLs, flagged.reason);
         return;
     }
