@@ -375,6 +375,42 @@ apiRouter.post("/user", async (req, res) => {
     return res.json({ hasPermission: true });
 });
 
+apiRouter.get("/checkmessage/:guild/:channel/:message", async (req, res) => {
+    const { guild, channel, message } = req.params;
+
+    console.log(`Checking message ${message} in channel ${channel}`);
+
+    if (!message || !channel) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // get the guild
+    let guildObj;
+    try {
+        guildObj = await client.guilds.fetch(guild);
+    } catch {
+        return res.status(404).json({ error: "Guild not found" });
+    }
+
+    // get the channel
+    let channelObj;
+    try {
+        channelObj = await guildObj.channels.fetch(channel);
+    } catch {
+        return res.status(404).json({ error: "Channel not found" });
+    }
+
+    // get the message
+    let messageObj;
+    try {
+        messageObj = await channelObj.messages.fetch(message);
+    } catch {
+        return res.status(404).json({ error: "Message not found" });
+    }
+
+    return res.json({ message: messageObj });
+});
+
 const actionsRouter = express.Router();
 
 actionsRouter.post("/delete", async (req, res) => {
