@@ -6,9 +6,11 @@ console.log = function () {
     _oldconsolelog(new Date().toISOString(), ...arguments);
 };
 
+import fs from "fs";
 import { Client, Collection, Events, GatewayIntentBits, Partials, PermissionsBitField } from "discord.js";
 import fetch from "node-fetch";
 import express from "express";
+import path from "path";
 
 const PORT = process.env.PORT || 8080;
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -22,11 +24,7 @@ const IMAGES_ENDPOINT = process.env.IMAGES_ENDPOINT;
 
 // === BASE FUNCTIONS ===
 
-async function report(message, reason) {
-    return // not implemented yet
-
-    const attachmentList = message.attachments.map((attachment) => attachment.url);
-
+async function report(message, attachments, reason) {
     const res = await fetch(REPORT_ENDPOINT, {
         method: "POST",
         headers: {
@@ -38,8 +36,9 @@ async function report(message, reason) {
             channel: message.channel.id,
             message: message.id,
             content: message.content,
-            attachments: attachmentList,
-            reason: reason
+            attachments: attachments,
+            reason: reason,
+            time: new Date().toISOString()
         }),
     });
     
@@ -56,6 +55,43 @@ async function report(message, reason) {
 async function validateMessage(contextObj, messageObj) {
     const contextStr = contextObj.map((c) => `${c.user}: ${c.content}`).join("\n");
     const message = messageObj.user + ": " + messageObj.content;
+
+    const samplesDirectory = path.join(__dirname, "prompts", "samples");
+
+    const messages = [
+        {
+            role: "system",
+            content: fs.readFileSync(path.join(__dirname, prompts, 'system.txt'), "utf-8")
+        }
+    ]
+
+    // for every sample directory in the samples directory, read the user.txt and assistant.txt files
+    for (const sample of fs.readdirSync(samplesDirectory)) {
+        const userPath = path.join(samplesDirectory, sample, "user.txt");
+        const assistantPath = path.join(samplesDirectory, sample, "assistant.txt");
+
+        if (fs.existsSync(userPath) && fs.existsSync(assistantPath)) {
+            messages.push({
+                role: "user",
+                content: fs.readFileSync(userPath, "utf-8")
+            });
+
+            messages.push({
+                role: "assistant",
+                content: fs.readFileSync(assistantPath, "utf-8")
+            });
+        }
+    }
+
+    messages.push({
+        role: "user",
+        content: "Context:\n" +
+            contextStr +
+            "\n" +
+            "Message:\n" +
+            message,
+    });
+
     const res = await fetch(MESSAGE_VERIFICATION_ENDPOINT, {
         method: "POST",
         headers: {
@@ -63,42 +99,7 @@ async function validateMessage(contextObj, messageObj) {
             "authorization": "Bearer " + MESSAGE_VERIFICATION_ENDPOINT_AUTH
         },
         body: JSON.stringify({
-            messages: [
-                {
-                    role: "system",
-                    content: "You are an AI tasked to detect scam, self promotion, harassment or nsfw messages on " + 
-                    "Discord, an online chatting application. You will be provided context to a message, and a message " + 
-                    "to check. If this message potentially falls under one of those categories, reply with \"TRUE\" " + 
-                    "with a short reason. otherwise, reply with \"FALSE\", no reason needed. Don't assume " + 
-                    "anything. If the message doesn't explicitly mention something, don't assume it. For example, " + 
-                    "internet slang like 'ur', asking for usernames, and pinging users are not scams. More " + 
-                    "importantly, if the context violates any of these, but not the message, don't flag it. " +
-                    "Otherwise you will flag an innocent user. If you are unsure, reply with \"FALSE\". "
-                },
-                {
-                    role: "user",
-                    content: "Context:\n" + 
-                        "user1: hey i need your bank card\n" + 
-                        "user2: sure why?\n" + 
-                        "user1: i need it to pay my hospital bills\n" + 
-                        "user2:okay...\n" + 
-                        "\n" + 
-                        "Message:\n" + 
-                        "user1: please?",
-                },
-                {
-                    role: "assistant",
-                    content: "TRUE | Bank Card Fraud.",
-                },
-                {
-                    role: "user",
-                    content: "Context:\n" +
-                        contextStr +
-                        "\n" +
-                        "Message:\n" +
-                        message,
-                }
-            ],
+            messages,
             maxTokens: 512,
             model: "@cf/meta/llama-3-8b-instruct",
         }),

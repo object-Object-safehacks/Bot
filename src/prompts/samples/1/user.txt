@@ -1,0 +1,8 @@
+Context:
+user1: hey i need your bank card
+user2: sure why?
+user1: i need it to pay my hospital bills
+user2:okay...
+
+Message:
+user1: please?
