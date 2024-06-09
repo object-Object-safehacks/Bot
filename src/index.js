@@ -56,6 +56,7 @@ async function report(message, attachments, reason) {
     
     if (res.ok) { 
         console.log(`Reported message from ${message.author.tag} in guild ${message.guild.name}`);
+        await message.member.timeout(1000 * 65, "CAPTCHA WAIT FOR SOLVE");
 
         const value = await res.json();
 
@@ -67,18 +68,22 @@ async function report(message, attachments, reason) {
         const row = new ActionRowBuilder()
             .addComponents(linkButton);
 
-        const watchMsg = await message.reply({
+        const watchMsg = await message.author.send({
             content: 
                 `# MESSAGE FLAGGED\n` +
-                `Your message has been flagged for the following reason: ${reason}\n` +
-                `Please solve the CAPTCHA to continue chatting.\n` +
+                `Your message \"${message.content}\" has been flagged ` +
+                `for the following reason: ${reason}\n` +
+                `Please solve the CAPTCHA in your direct messages to continue chatting.\n` +
                 `An elevated punishment will be issued <t:${Math.floor(Date.now() / 1000) + 60}:R>.`,
             components: [row]
         });
 
         setTimeout(async () => {
             try {
-                await watchMsg.delete();
+                await watchMsg.edit({
+                    content: `Session timed out. Your message has been reported to the server moderators.`,
+                    components: []
+                })
             } catch {
                 console.error(`Failed to delete watch message..?`);
             }
@@ -88,7 +93,14 @@ async function report(message, attachments, reason) {
             } catch {
                 console.error(`Failed to delete message from ${message.author.tag} in guild ${message.guild.name}`);
             }
-        })
+
+            try {
+                // timeout
+                await message.member.timeout(1000 * 60 * 60, "CAPTCHA TIMEOUT");
+            } catch {
+                console.error(`Failed to timeout user ${message.author.tag} in guild ${message.guild.name}`);
+            }
+        }, 1000 * 60)
     } else {
         console.error(`Failed to report message from ${message.author.tag} in guild ${message.guild.name}`);
     }
