@@ -23,6 +23,10 @@ const IMAGES_ENDPOINT = process.env.IMAGES_ENDPOINT;
 // === BASE FUNCTIONS ===
 
 async function report(message, reason) {
+    return // not implemented yet
+
+    const attachmentList = message.attachments.map((attachment) => attachment.url);
+
     const res = await fetch(REPORT_ENDPOINT, {
         method: "POST",
         headers: {
@@ -34,12 +38,16 @@ async function report(message, reason) {
             channel: message.channel.id,
             message: message.id,
             content: message.content,
-            reason: reason,
+            attachments: attachmentList,
+            reason: reason
         }),
     });
     
     if (res.ok) { 
         console.log(`Reported message from ${message.author.tag} in guild ${message.guild.name}`);
+
+        const data = await res.json();
+        return data.captcha;
     } else {
         console.error(`Failed to report message from ${message.author.tag} in guild ${message.guild.name}`);
     }
@@ -63,7 +71,9 @@ async function validateMessage(contextObj, messageObj) {
                     "check. If this message potentially falls under one of those categories, reply with \"TRUE\" " + 
                     "with a reason. otherwise, reply with \"FALSE\". Don't assume anything. If the message " + 
                     "doesn't explicitly mention something, don't assume it. For example, " + 
-                    "internet slang like 'ur', asking for usernames, and pinging users are not scams."
+                    "internet slang like 'ur', asking for usernames, and pinging users are not scams. More " + 
+                    "importantly, if the context violates any of these, but not the message, don't flag it. " +
+                    "Otherwise you will flag an innocent user. If you are unsure, reply with \"FALSE\". "
                 },
                 {
                     role: "user",
@@ -110,7 +120,9 @@ async function validateMessage(contextObj, messageObj) {
     }
 }
 
-async function validateImage(urls) {
+async function validateImages(urls) {
+    console.log(urls);
+
     const res = await fetch(IMAGES_ENDPOINT, {
         method: "POST",
         headers: {
@@ -160,7 +172,7 @@ client.on(Events.MessageCreate, async (message) => {
         console.log(`Received message with attachments: ${attachmentURLs.join(", ")}`);
         
         // validate the image
-        const responses = await validateImage(attachmentURLs);
+        const responses = await validateImages(attachmentURLs);
 
         for (const response of responses) {
             if (response) {
