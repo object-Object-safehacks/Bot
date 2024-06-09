@@ -12,6 +12,8 @@ import fetch from "node-fetch";
 import express from "express";
 import path from "path";
 
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+
 const PORT = process.env.PORT || 8080;
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
@@ -25,18 +27,27 @@ const IMAGES_ENDPOINT = process.env.IMAGES_ENDPOINT;
 // === BASE FUNCTIONS ===
 
 async function report(message, attachments, reason) {
+    return null;
     const res = await fetch(REPORT_ENDPOINT, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
-            user: message.author.id,
+            user: {
+                id: message.author.id,
+                name: message.author.tag
+            },
             guild: message.guild.id,
-            channel: message.channel.id,
-            message: message.id,
-            content: message.content,
-            attachments: attachments,
+            channel: {
+                id: message.channel.id,
+                name: message.channel.name
+            },
+            message: {
+                id: message.id,
+                content: message.content,
+                attachments: attachments
+            },
             reason: reason,
             time: new Date().toISOString()
         }),
@@ -61,7 +72,7 @@ async function validateMessage(contextObj, messageObj) {
     const messages = [
         {
             role: "system",
-            content: fs.readFileSync(path.join(__dirname, prompts, 'system.txt'), "utf-8")
+            content: fs.readFileSync(path.join(__dirname, "prompts", 'system.txt'), "utf-8")
         }
     ]
 
@@ -195,7 +206,7 @@ client.on(Events.MessageCreate, async (message) => {
         console.log(`Message from ${message.author.tag} was flagged`);
         message.reply(flagged.reason);
 
-        report(message, flagged.reason);
+        report(message, [], flagged.reason);
         return;
     }
 
