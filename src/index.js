@@ -56,8 +56,7 @@ async function report(message, attachments, reason) {
     if (res.ok) { 
         console.log(`Reported message from ${message.author.tag} in guild ${message.guild.name}`);
 
-        const data = await res.json();
-        return data.captcha;
+        return await res.text();
     } else {
         console.error(`Failed to report message from ${message.author.tag} in guild ${message.guild.name}`);
     }
