@@ -27,7 +27,25 @@ const IMAGES_ENDPOINT = process.env.IMAGES_ENDPOINT;
 // === BASE FUNCTIONS ===
 
 async function report(message, attachments, reason) {
-    return null;
+    console.log(JSON.stringify({
+        user: {
+            id: message.author.id,
+            name: message.author.tag
+        },
+        guild: message.guild.id,
+        channel: {
+            id: message.channel.id,
+            name: message.channel.name
+        },
+        message: {
+            id: message.id,
+            content: message.content,
+            attachments: attachments
+        },
+        reason: reason,
+        time: new Date().toISOString()
+    }))
+
     const res = await fetch(REPORT_ENDPOINT, {
         method: "POST",
         headers: {
@@ -95,11 +113,12 @@ async function validateMessage(contextObj, messageObj) {
 
     messages.push({
         role: "user",
-        content: "Context:\n" +
+        content: "[[[CONTEXT]]]\n" +
             contextStr +
-            "\n" +
-            "Message:\n" +
-            message,
+            "[[[CONTEXT]]]\n" +
+            "[[[MESSAGE]]]\n" +
+            message + "\n" + 
+            "[[[MESSAGE]]]",
     });
 
     const res = await fetch(MESSAGE_VERIFICATION_ENDPOINT, {
@@ -120,9 +139,18 @@ async function validateMessage(contextObj, messageObj) {
     console.log(data);
 
     if (data.response.includes("TRUE")) {
+        const value = data.response.split("|")[1]
+
+        let report;
+        if (!value) {
+            report = "No reason provided";
+        } else {
+            report = value.trim();
+        }
+
         return {
             value: true,
-            reason: data.response.split("|")[1].trim()
+            reason: report
         };
     } else {
         return {
@@ -152,6 +180,12 @@ async function validateImages(urls) {
     return { results: [] };
 }
 
+function validateURLs(urls) {
+    return urls.map((url) => {
+        return false // placeholder
+    })
+}
+
 // === BOT CODE ===
 const client = new Client({
     intents: Object.values(GatewayIntentBits),
@@ -174,21 +208,47 @@ client.on(Events.MessageCreate, async (message) => {
 
     const contextObj = context.get(message.channel.id).slice(-3);
 
-    const attachmentURLs = message.attachments.map((attachment) => attachment.url);
+    const attachmentURLs = message.content.match(/(https?:\/\/[^\s]+)/g) || [];
+    
+    // add any attachments to the list of URLs if they dont already exist
+    for (const attachment of message.attachments.values()) {
+        if (!attachmentURLs.includes(attachment.url)) {
+            attachmentURLs.push(attachment.url);
+        }
+    }
+
     if (attachmentURLs.length > 0) {
         console.log(`Received message with attachments: ${attachmentURLs.join(", ")}`);
         
         // validate the image
         const responses = await validateImages(attachmentURLs);
 
+        const urlsToScan = [];
         for (const response of responses.results) {
-            if (response) {
-                const baseDomain = new URL(IMAGES_ENDPOINT).hostname;
-                message.reply('Bad image detected. Please do not send inappropriate images.\n' +
-                    "https://" + baseDomain + responses.urls[responses.results.indexOf(response)]);
+            if (response != null) {
+                if (response) {
+                    message.reply('Bad image detected. Please do not send inappropriate images.\n' +
+                        responses.urls[responses.results.indexOf(response)]);
+    
+                    report(message, attachmentURLs, 'Images');
+                    return;
+                }
+            } else {
+                urlsToScan.push(responses.urls[responses.results.indexOf(response)]);
+            }
+        }
 
-                report(message, 'Images');
-                return;
+        if (urlsToScan.length > 0) {
+            const urlResponses = await validateURLs(urlsToScan);
+
+            for (const response of urlResponses) {
+                if (response) {
+                    message.reply('Bad URL detected.\n' +
+                        urlsToScan[urlResponses.indexOf(response)]);
+        
+                    report(message, attachmentURLs, 'URLs');
+                    return;
+                }
             }
         }
 
@@ -205,7 +265,7 @@ client.on(Events.MessageCreate, async (message) => {
         console.log(`Message from ${message.author.tag} was flagged`);
         message.reply(flagged.reason);
 
-        report(message, [], flagged.reason);
+        report(message, attachmentURLs, flagged.reason);
         return;
     }
 

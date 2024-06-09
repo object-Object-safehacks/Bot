@@ -1,8 +1,11 @@
-Context:
+[[[CONTEXT]]]
 user1: hey i need your bank card
 user2: sure why?
 user1: i need it to pay my hospital bills
 user2:okay...
+[[[CONTEXT]]]
 
-Message:
+
+[[[MESSAGE]]]
 user1: please?
+[[[MESSAGE]]]
