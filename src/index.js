@@ -29,7 +29,7 @@ const IMAGES_ENDPOINT = process.env.IMAGES_ENDPOINT;
 async function report(message, attachments, reason) {
     console.log(`Reporting message from ${message.author.tag} in guild ${message.guild.name}`);
 
-    const res = await fetch(REPORT_ENDPOINT, {
+    const res = await fetch(REPORT_ENDPOINT + "/report", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -60,6 +60,8 @@ async function report(message, attachments, reason) {
 
         const value = await res.json();
 
+        const id = value.id;
+
         const linkButton = new ButtonBuilder()
             .setLabel("Solve CAPTCHA")
             .setURL(value.url)
@@ -78,7 +80,13 @@ async function report(message, attachments, reason) {
             components: [row]
         });
 
-        setTimeout(async () => {
+        const timeout = setTimeout(async () => {
+            try {
+                clearInterval(checkLoop);
+            } catch {
+                // its fine if this fails
+            }
+
             try {
                 await watchMsg.edit({
                     content: `Session timed out. Your message has been reported to the server moderators.`,
@@ -101,6 +109,38 @@ async function report(message, attachments, reason) {
                 console.error(`Failed to timeout user ${message.author.tag} in guild ${message.guild.name}`);
             }
         }, 1000 * 60)
+
+        const checkLoop = setInterval(async () => {
+            try {
+                const res = await fetch(REPORT_ENDPOINT + "/getTurnstileStatus/" + id);
+
+                if (res.ok) {
+                    const value = await res.json();
+
+                    if (value.completed) {
+                        clearInterval(checkLoop);
+                        clearTimeout(timeout);
+
+                        try {
+                            await watchMsg.edit({
+                                content: `CAPTCHA solved. You may continue chatting.`,
+                                components: []
+                            })
+                        } catch {
+                            console.error(`Failed to delete watch message..?`);
+                        }
+
+                        try {
+                            await message.member.timeout(null, "CAPTCHA SOLVED");
+                        } catch {
+                            console.error(`Failed to untimeout user ${message.author.tag} in guild ${message.guild.name}`);
+                        }
+                    }
+                }
+            } catch {
+                console.error(`Failed to check CAPTCHA status for ${message.author.tag} in guild ${message.guild.name}`);
+            }
+        }, 1000)
     } else {
         console.error(`Failed to report message from ${message.author.tag} in guild ${message.guild.name}`);
     }
@@ -284,7 +324,7 @@ client.on(Events.MessageCreate, async (message) => {
     if (flagged.value) {
         report(message, attachmentURLs, flagged.reason);
         return;
-    }
+    } 
 
     // add the message to the context
     context.set(message.channel.id, [...contextObj, {
@@ -338,9 +378,9 @@ apiRouter.post("/user", async (req, res) => {
 const actionsRouter = express.Router();
 
 actionsRouter.post("/delete", async (req, res) => {
-    const { message, guild } = req.body;
+    const { message, channel, guild } = req.body;
 
-    console.log(`Deleting message ${message} in guild ${guild}`);
+    console.log(`Deleting message ${message} in channel ${channel} in guild ${guild}`);
 
     if (!message || !guild) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -357,7 +397,7 @@ actionsRouter.post("/delete", async (req, res) => {
     // get the message
     let messageObj;
     try {
-        messageObj = await (await guildObj.channels.fetch(message)).messages.fetch(message);
+        messageObj = await (await guildObj.channels.fetch(channel)).messages.fetch(message);
     } catch {
         return res.status(404).json({ error: "Message not found" });
     }
@@ -434,7 +474,7 @@ actionsRouter.post("/untimeout", async (req, res) => {
 
     // untimeout the user
     try {
-        await member.untimeout("API UNTIMEOUT REQUEST");
+        await member.timeout(null, "API UNTIMEOUT REQUEST");
     } catch {
         return res.status(500).json({ error: "Failed to untimeout user" });
     }
