@@ -407,6 +407,41 @@ actionsRouter.post("/timeout", async (req, res) => {
     return res.json({ success: true });
 })
 
+actionsRouter.post("/untimeout", async (req, res) => {
+    const { user, guild } = req.body;
+
+    console.log(`Untiming out user ${user} in guild ${guild}`);
+
+    if (!user || !guild) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // get the guild
+    let guildObj;
+    try {
+        guildObj = await client.guilds.fetch(guild);
+    } catch {
+        return res.status(404).json({ error: "Guild not found" });
+    }
+
+    // get the user
+    let member;
+    try {
+        member = await guildObj.members.fetch(user);
+    } catch {
+        return res.status(404).json({ error: "User not found" });
+    }
+
+    // untimeout the user
+    try {
+        await member.untimeout("API UNTIMEOUT REQUEST");
+    } catch {
+        return res.status(500).json({ error: "Failed to untimeout user" });
+    }
+
+    return res.json({ success: true });
+})
+
 actionsRouter.post("/ban", async (req, res) => {
     const { user, guild } = req.body;
 
