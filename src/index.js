@@ -56,7 +56,11 @@ async function report(message, attachments, reason) {
     
     if (res.ok) { 
         console.log(`Reported message from ${message.author.tag} in guild ${message.guild.name}`);
-        await message.member.timeout(1000 * 65, "CAPTCHA WAIT FOR SOLVE");
+        try {
+            await message.member.timeout(1000 * 65, "CAPTCHA WAIT FOR SOLVE");
+        } catch {
+            console.error(`Failed to timeout user ${message.author.tag} in guild ${message.guild.name}`);
+        }
 
         const value = await res.json();
 
